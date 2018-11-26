@@ -9,6 +9,8 @@ library(statmod)
 
 #bring in Rcpp functions
 sourceCpp('C:/Users/Brian/Google Drive/PhD Work/LongitudinalfMRI/LongitInclude.cpp')
+sourceCpp('C:/Users/Brian/Desktop/LongitInclude.cpp')
+
 
 ##########################   Simulate cross-sectional data ##############
 ###Set all parameters for simulated data to be analyzed
@@ -74,6 +76,16 @@ for(i in 1:N2){
 NPerm=1000
 CSFit=FCanalysis(datalist=DataList, N1=N1, N2=N2, Nperms=NPerm)
 
-CSFit$T
-permp((1-ecdf(CSFit$Perm_dist)(CSFit$T))*NPerm,NPerm,N1,N2)
+CSFit$T_global
+permp((1-ecdf(CSFit$T_dist_global)(CSFit$T_global))*NPerm,NPerm,N1,N2)
+
+#Calculate p values with correction from Phipson 2010
+PLocal=rep(NA,Q)  #initialize vector of pvalues for the local tests
+for(q in 1:Q){
+  PLocal[q]=permp((1-ecdf(CSFit$T_dist_local[,q])(CSFit$T_local[q]))*NPerm,NPerm,N1,N2)
+}
+
+#apply false discovery rate correction, shows Q interaction effect p-values then Q main effect p-values
+Padj=round(p.adjust(PLocal,method="BH"),4)
+
 

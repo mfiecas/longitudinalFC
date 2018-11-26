@@ -457,7 +457,7 @@ List permute(int N, int Q, const mat& r, const cube& RoyVars, vec ids){
 
 //function to permute data and calculate test statistic for permuted data for cross sectional model
 // [[Rcpp::export]]
-double permT(int N1, int N2, int Q, const mat& r, const cube& RoyVars, double step2_tol, 
+List permT(int N1, int N2, int Q, const mat& r, const cube& RoyVars, double step2_tol, 
              vec ids, string Psi0type, bool verbose, int MaxIter){  
   //N1 is number of subjects in group 1
   //N2 is number of subjects in group 2
@@ -489,9 +489,18 @@ double permT(int N1, int N2, int Q, const mat& r, const cube& RoyVars, double st
   mat beta2Var_new=PsiBeta2_new("betaVar");
   
   //recalculate test statistic with new group assignments
-  double out=getStat(beta1_new, beta2_new, beta1Var_new, beta2Var_new);
-    
-  return out;
+  double T_global=getStat(beta1_new, beta2_new, beta1Var_new, beta2Var_new);
+  
+  vec T_local(Q, fill::zeros);
+  for(int q = 0; q < Q; q++){
+    T_local(q) = getStatUni(beta1_new(q), beta2_new(q), 
+                            beta1Var_new(q, q), beta2Var_new(q, q));
+  }
+  
+  return List::create(
+    _["T_global"] = T_global,
+    _["T_local"] = T_local
+  );  
 }
 
 
@@ -576,22 +585,32 @@ List FCanalysis(const List& datalist, int N1, int N2, int Nperms, int lag=50,
   outList("betaG2var")=betaG2Var;
   outList("betaG2")=betaG2;
   
-  //Calculate Test Statistic
-  double T;
-  T=getStat(betaG1, betaG2, betaG1Var, betaG2Var);
-  outList("T")=T;
+  //Calculate Test Statistics
+  double T_global;
+  T_global=getStat(betaG1, betaG2, betaG1Var, betaG2Var);
+  outList("T_global")=T_global;
+  vec T_local(Q);
+  for(int q = 0; q < Q; q++){
+    T_local(q) = getStatUni(betaG1(q), betaG2(q), betaG1Var(q, q), betaG2Var(q, q));
+  }
+  outList("T_local")=T_local;
   
   //Run permutation test
-  vec T_dist(Nperms, fill::zeros);
+  vec T_dist_global(Nperms, fill::zeros);
+  mat T_dist_local(Nperms, Q);
   vec ids(N,fill::zeros);
   for(int n = 0;n < N; n++){
     ids(n)=n;
   }
+  List out2(2);
   for(int nperm = 0; nperm < Nperms; nperm++){
-    T_dist(nperm)=permT(N1, N2, Q, r, RoyVars, step2_tol, ids, Psi0type, verbose, MaxIter);
+    out2 = permT(N1, N2, Q, r, RoyVars, step2_tol, ids, Psi0type, verbose, MaxIter);
+    T_dist_global(nperm) = as<double>(out2("T_global"));
+    T_dist_local.row(nperm) = as<vec>(out2("T_local")).t();
     if(verbose==true){cout << "Permutation " << nperm+1 << " of " << Nperms << endl;}
   }
-  outList("Perm_dist")=T_dist;
+  outList("T_dist_global")=T_dist_global;
+  outList("T_dist_local")=T_dist_local;
   
   return outList;
 }
